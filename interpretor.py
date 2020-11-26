@@ -303,7 +303,7 @@ class Parser:
             self.advance()
             temp.value =temp.value.replace('"','')
             return StringExp(temp)
-    def argparser(self,sep='AMP'):
+    def argparser(self,sep='AMP',outer=False):
         args={}
         while self.c_t.type == 'VID':
             temp=self.c_t
@@ -313,6 +313,24 @@ class Parser:
             if self.c_t.type == sep:
                 self.eat(sep)
         return args
+    def argparserex(self,sep='AMP'):
+        list=[]
+        self.eat('LPAREN')
+        while self.c_t.type == 'VID' or self.c_t.type == 'INTEGER_CONST' or \
+            self.c_t.type == 'FLOAT_CONST' or self.c_t.type == 'STRING_CONST1' or \
+            self.c_t.type == 'STRING_CONST2':
+            list.append([None,self.expr()])
+            if self.c_t.type == sep:
+                self.eat(sep)
+        self.eat('RPAREN')
+        while self.c_t.type == 'VID':
+            temp=self.c_t
+            self.advance()
+            self.eat('LPAREN')
+            exp=self.expr()
+            self.eat('RPAREN')
+            list.append([temp.value,exp])
+        return list
 
 ###############################
 ###############################
