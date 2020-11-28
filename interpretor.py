@@ -1,8 +1,5 @@
 import re
-
 from define import *
-
-
 class Lexer:
     def __init__(self):
         self.tokens = []
@@ -15,11 +12,12 @@ class Lexer:
             ('COMMENT2', r'<#(\n|.)*#>'),  # COMMENTS
             ('COMMENT1', r'#.*'),  # COMMENTS
             ('PHP', r'Php'),  # PHP
-            ('CONDITION', 'condition'),
             ('IMPORTKWD', r'Include\(`[^`]*`\);'),
             ('JS', r'Js'),  # JS
             ('CLINE', r'Line'),
             ('ID', 'Id'),
+            ('CONDITION', 'Condition'),
+            ('JUMP','Jump'),
             ('CSPACE', r'Space'),
             ('PYTHON', r'Python'),  # PYTHON
             ('SESSION_KEY', r'Session.Key'),  # Server Segment
@@ -172,7 +170,7 @@ class Parser:
 
     def parse(self):
         self.tokens.append(Token('end of file', 'EOF', -1, -1))
-        return self.compound()
+        return self.statements()
     def compound(self):
         stmts=[]
         while self.c_t.type != 'EOF':
@@ -193,6 +191,12 @@ class Parser:
                         listexp.append(VarAssignExp(i, self.expr()))
                     self.eat('PCOMMA')
                     stmts.append(MultiVarAssignExp(listexp))
+            elif self.c_t.type == 'PRINT':
+                self.advance()
+                self.eat('LPAREN')
+                stmts.append(PrintStatement(self.argparserex(sep='AMP')))
+                self.eat('RPAREN')
+                self.eat('PCOMMA')
             elif self.c_t.type == 'IF':
                 self.advance()
                 cd = self.expr()
@@ -233,7 +237,91 @@ class Parser:
                 break
         return CompoundStatement(stmts)
     def statements(self):
-        pass
+        stmts = []
+        while self.c_t.type != 'EOF':
+            if self.c_t.type == 'VID':
+                temp = self.c_t
+                vars = [temp]
+                self.advance()
+                while self.c_t.type == 'VID':
+                    vars.append(self.eat('VID'))
+                self.eat('ATTR')
+                if len(vars) == 1:
+                    ex = self.expr()
+                    self.eat('PCOMMA')
+                    stmts.append(VarAssignExp(temp, ex))
+                else:
+                    listexp = []
+                    for i in vars:
+                        listexp.append(VarAssignExp(i, self.expr()))
+                    self.eat('PCOMMA')
+                    stmts.append(MultiVarAssignExp(listexp))
+            elif self.c_t.type == 'PRINT':
+                self.advance()
+                self.eat('LPAREN')
+                stmts.append(PrintStatement(self.argparserex(sep='AMP')))
+                self.eat('RPAREN')
+                self.eat('PCOMMA')
+            elif self.c_t.type == 'IF':
+                self.advance()
+                cd = self.expr()
+                self.eat('COLON')
+                self.eat('LBRACKET')
+                stmt = self.compound()
+                ex = IfStatement(cd, stmt, None, [])
+                self.eat('RBRACKET')
+                while self.c_t.type == 'ELSEIF':
+                    self.advance()
+                    pct = self.expr()
+                    self.eat('COLON')
+                    self.eat('LBRACKET')
+                    stmt = self.compound()
+                    ex.elseifbodies.append({'condition': pct, 'body': stmt})
+                    self.eat('RBRACKET')
+                if self.c_t.type == 'ELSE':
+                    self.advance()
+                    self.eat('COLON')
+                    self.eat('LBRACKET')
+                    stmt = self.compound()
+                    ex.elsebody = stmt
+                    self.eat('RBRACKET')
+                stmts.append(ex)
+            elif self.c_t.type == 'ELSEIF':
+                print("ElseIf Comming without if")
+                raise RuntimeError("from {} Elseif without if at line:{} col:{}"
+                                   .format(self.c_t.file, self.c_t.line, self.c_t.col))
+            elif self.c_t.type == 'LIST':
+                self.advance()
+                stmts.append(ListExp(self.expr()))
+                self.eat('PCOMMA')
+            elif self.c_t.type == 'ID':
+                self.advance()
+                self.eat('LPAREN')
+                data=self.expr()
+                self.eat('RPAREN')
+                self.eat('PCOMMA')
+                stmts.append(IdExp(data))
+            elif self.c_t.type == 'JUMP':
+                self.advance()
+                self.eat('LPAREN')
+                idexp = self.expr()
+                timeexp=None
+                conditionexp=None
+                self.eat('RPAREN')
+                if self.c_t.type == 'TIMES':
+                    self.advance()
+                    self.eat('LPAREN')
+                    timeexp=self.expr()
+                    self.eat('RPAREN')
+                if self.c_t.type == 'CONDITION':
+                    self.advance()
+                    self.eat('LPAREN')
+                    conditionexp=self.expr()
+                    self.eat('RPAREN')
+                stmts.append(JumpExp(idexp,timeexp,conditionexp))
+            else:
+                break
+        return Statements(stmts)
     def expr(self):
         left = self.compr()
         temp = None
@@ -303,6 +391,28 @@ class Parser:
             self.advance()
             temp.value =temp.value.replace('"','')
             return StringExp(temp)
+        elif temp.type == 'CLINE':
+            self.advance()
+            self.advance()
+            if self.c_t.type == 'LPAREN':
+                self.advance()
+                data = LineExp(self.expr())
+                self.eat('RPAREN')
+                return data
+            else:
+                return LineExp(None)
+        elif temp.type == 'CSPACE':
+            self.advance()
+            if self.c_t.type == 'LPAREN':
+                self.advance()
+                data = SpaceExp(self.expr())
+                self.eat('RPAREN')
+                return data
+            else:
+                return SpaceExp(None)
+
+        else:
+            print(temp.type)
     def argparser(self,sep='AMP',outer=False):
         args={}
         while self.c_t.type == 'VID':
@@ -315,21 +425,12 @@ class Parser:
         return args
     def argparserex(self,sep='AMP'):
         list=[]
-        self.eat('LPAREN')
         while self.c_t.type == 'VID' or self.c_t.type == 'INTEGER_CONST' or \
             self.c_t.type == 'FLOAT_CONST' or self.c_t.type == 'STRING_CONST1' or \
-            self.c_t.type == 'STRING_CONST2':
-            list.append([None,self.expr()])
+            self.c_t.type == 'STRING_CONST2' or self.c_t.type == 'CLINE' or self.c_t.type == 'CSPACE' :
+            list.append(self.expr())
             if self.c_t.type == sep:
                 self.eat(sep)
-        self.eat('RPAREN')
-        while self.c_t.type == 'VID':
-            temp=self.c_t
-            self.advance()
-            self.eat('LPAREN')
-            exp=self.expr()
-            self.eat('RPAREN')
-            list.append([temp.value,exp])
         return list
 
 ###############################
@@ -337,10 +438,12 @@ class Parser:
 ######### Interpreter #########
 ###############################
 ###############################
+global_statement=None
 class Interpreter:
     def __init__(self, tree):
         self.tree = tree
         self.symbol_table = None
+        self.loopstack=[]
 
     def visit(self, node, symbol_table=None):
         method_name = f'visit_{type(node).__name__}'
@@ -399,10 +502,13 @@ class Interpreter:
             self.visit(i,symbol_table)
 
     def visit_CompoundStatement(self,node,symbol_table):
-        for i in node.statements:
-            val=self.visit(i,symbol_table)
+        while node.havenext():
+            val=self.visit(node.next(),symbol_table)
             if val:
                 return val
+    def visit_LoopStatement(self,node,symbol_table):
+        pass
+
     def no_visit_method(self, node, symbol_table):
         raise Exception(f"No visit_{type(node).__name__} method defined")
 
@@ -434,7 +540,7 @@ class Interpreter:
         if val:
             return val
         else:
-            raise RuntimeError('Undefined variable {} at line:{} col:{} in {}'
+            raise RuntimeError('Undefined variable "{}" at line:{} col:{} in {}'
                                .format(node.tok.value,node.tok.line,node.tok.col,node.tok.file))
 
     def visit_ReturnStatement(self,node,symbol_table):
@@ -449,6 +555,56 @@ class Interpreter:
         value=self.visit(node.data,symbol_table)
         for i in value.data:
             symbol_table.set(i,value.data[i])
+    def visit_StringExp(self,node,symbol_table):
+        return Value(node.tok.value)
+
+    def visit_PrintStatement(self,node,symbol_table):
+        for i in node.args:
+            print(self.visit(i,symbol_table),end='')
+
+    def visit_SpaceExp(self,node,symbol_table):
+        if node.exp is not None:
+            n=self.visit(node.exp,symbol_table)
+            data=""
+            for i in range(n.value):
+                data+=" "
+            return Value(data)
+        else:
+            return Value(" ")
+    def visit_LineExp(self,node,symbol_table):
+        if node.exp is not None:
+            n=self.visit(node.exp,symbol_table)
+            data=""
+            for i in range(n.value):
+                data+="\n"
+            return Value(data)
+        else:
+            return Value("\n")
+    def visit_Statements(self,node,symbol_table):
+        print(node)
+        while node.havenext():
+            self.visit(node.next(),symbol_table)
+    def visit_IdExp(self,node,symbol_table):
+        value=self.visit(node.exp,symbol_table)
+        global_symbol_table.set(value.value,Value(global_statement.getjump()))
+
+    def visit_JumpExp(self,node,symbol_table):
+         tojump=self.visit(node.idexp,symbol_table).value
+         v=global_symbol_table.get(tojump).value
+         condition=None if node.conditionexp is None else self.visit(node.conditionexp,symbol_table).value
+         times=None if node.timeexp is None else self.visit(node.timeexp,symbol_table).value
+         print(condition,times)
+         print(v)
+         if condition:
+             while times != node.counter:
+                 for i in range(v,global_statement.getjump()-1):
+                     self.visit(global_statement.statements[i],symbol_table)
+                 node.counter+=1
+                 print(node.counter)
+             node.counter=0
+             global_statement.setjump(global_statement.getjump())
+
+
 if __name__ == '__main__':
     # try:
         lexer = Lexer()
@@ -456,6 +612,7 @@ if __name__ == '__main__':
         p = Parser(data)
         tree = p.parse()
         global_symbol_table = SymbolTable('module')
+        global_statement=tree
         i = Interpreter(tree)
         i.visit(tree, global_symbol_table)
         print(global_symbol_table.name,global_symbol_table.symbols)
