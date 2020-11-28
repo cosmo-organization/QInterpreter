@@ -38,10 +38,37 @@ class MultiVarAssignExp:
 class CompoundStatement:
     def __init__(self,statements):
         self.statements=statements
+        self.counter=0
+    def havenext(self):
+        return True if self.counter<len(self.statements) else False
+    def next(self):
+        self.counter+=1
+        return self.statements[self.counter-1]
+    def setjump(self,counter):
+        self.counter=counter
+    def getjump(self):
+        return self.counter
+
+class LoopStatement:
+    def __init__(self,condition=None,expr=None,times=None,body=None):
+        self.condition=condition
+        self.expr=expr
+        self.times=times
+        self.body=body
 
 class Statements:
     def __init__(self,statements):
         self.statements=statements
+        self.counter = 0
+    def havenext(self):
+        return True if self.counter < len(self.statements) else False
+    def next(self):
+        self.counter += 1
+        return self.statements[self.counter - 1]
+    def setjump(self, counter):
+        self.counter = counter
+    def getjump(self):
+        return self.counter
 
 class IfStatement:
     def __init__(self,condition,ifbody,elsebody,elseifbodies):
@@ -53,6 +80,27 @@ class IfStatement:
 class ReturnStatement:
     def __init__(self,exp):
         self.exp=exp
+class PrintStatement:
+    def __init__(self,args):
+        self.args=args
+class LineExp:
+    def __init__(self,exp):
+        self.exp=exp
+class SpaceExp:
+    def __init__(self,exp):
+        self.exp=exp
+
+class IdExp:
+    def __init__(self,exp):
+        self.exp=exp
+
+class JumpExp:
+    def __init__(self,idexp,timeexp=None,conditionexp=None):
+        self.idexp=idexp
+        self.timeexp=timeexp
+        self.conditionexp=conditionexp
+        self.counter=0
+        self.out=-1
 
 class TupleExp:
     def __init__(self,args):

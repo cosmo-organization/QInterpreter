@@ -318,6 +318,7 @@ class Parser:
                     self.eat('LPAREN')
                     conditionexp=self.expr()
                     self.eat('RPAREN')
+                self.eat('PCOMMA')
                 stmts.append(JumpExp(idexp,timeexp,conditionexp))
             else:
                 break
@@ -335,7 +336,7 @@ class Parser:
     def compr(self):
         left = self.arithmetic()
         temp = None
-        while self.c_t.type in ['LT', 'GT', 'EQ', 'LTE', 'GTE', 'NE']:
+        while self.c_t.type in ['LT', 'GT', 'EQ', 'LE', 'GE', 'NE']:
             temp = self.c_t
             self.advance()
             left = BinOp(left, temp, self.arithmetic())
@@ -392,7 +393,6 @@ class Parser:
             temp.value =temp.value.replace('"','')
             return StringExp(temp)
         elif temp.type == 'CLINE':
-            self.advance()
             self.advance()
             if self.c_t.type == 'LPAREN':
                 self.advance()
@@ -591,18 +591,30 @@ class Interpreter:
     def visit_JumpExp(self,node,symbol_table):
          tojump=self.visit(node.idexp,symbol_table).value
          v=global_symbol_table.get(tojump).value
-         condition=None if node.conditionexp is None else self.visit(node.conditionexp,symbol_table).value
+         condition=node.conditionexp
          times=None if node.timeexp is None else self.visit(node.timeexp,symbol_table).value
-         print(condition,times)
-         print(v)
-         if condition:
-             while times != node.counter:
+         if condition is not None and times is not None:
+             while times > node.counter and self.visit(condition,symbol_table).value==True:
                  for i in range(v,global_statement.getjump()-1):
+                     # print(global_statement.statements[i])
                      self.visit(global_statement.statements[i],symbol_table)
                  node.counter+=1
-                 print(node.counter)
              node.counter=0
-             global_statement.setjump(global_statement.getjump())
+         elif condition is not None:
+             while self.visit(condition,symbol_table).value == True:
+                 for i in range(v,global_statement.getjump()-1):
+                     self.visit(global_statement.statements[i],symbol_table)
+         elif times is not None:
+             while times > node.counter:
+                 for i in range(v,global_statement.getjump()-1):
+                     # print(global_statement.statements[i])
+                     self.visit(global_statement.statements[i],symbol_table)
+                 node.counter+=1
+             node.counter=0
+         elif times is None and condition is None:
+             while True:
+                 for i in range(v,global_statement.getjump()-1):
+                     self.visit(global_statement.statements[i],symbol_table)
 
 
 if __name__ == '__main__':
