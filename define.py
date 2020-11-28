@@ -113,6 +113,10 @@ class ListExp:
 class StringExp:
     def __init__(self,tok):
         self.tok=tok
+
+class GlobalExp:
+    def __init__(self,exp):
+        self.exp=exp
 #########################
 ##### Values ############
 #########################
