@@ -203,11 +203,34 @@ class Parser:
                 self.eat('PCOMMA')
             elif self.c_t.type == 'GLOBAL':
                 self.advance()
-                var=self.eat('VID')
+                var = self.eat('VID')
                 self.eat('ATTR')
-                exp=self.expr()
+                exp = self.expr()
                 self.eat('PCOMMA')
-                stmts.append(GlobalExp(VarAssignExp(var,exp)))
+                stmts.append(GlobalExp(VarAssignExp(var, exp)))
+            elif self.c_t.type == 'LOOP':
+                self.advance()
+                self.eat('LPAREN')
+                vid = self.eat('VID')
+                self.eat('RPAREN')
+                timeexp = None
+                conditionexp = None
+                body = None
+                if self.c_t.type == 'TIMES':
+                    self.advance()
+                    self.eat('LPAREN')
+                    timeexp = self.expr()
+                    self.eat('RPAREN')
+                if self.c_t.type == 'CONDITION':
+                    self.advance()
+                    self.eat('LPAREN')
+                    conditionexp = self.expr()
+                    self.eat('RPAREN')
+                self.eat('COLON')
+                self.eat('LBRACKET')
+                body = self.compound()
+                self.eat('RBRACKET')
+                stmts.append(LoopStatement(vid, conditionexp, timeexp, body))
             elif self.c_t.type == 'IF':
                 self.advance()
                 cd = self.expr()
@@ -244,6 +267,8 @@ class Parser:
                 self.advance()
                 stmts.append(ListExp(self.expr()))
                 self.eat('PCOMMA')
+
+
             else:
                 break
         return CompoundStatement(stmts)
@@ -276,11 +301,11 @@ class Parser:
                 self.eat('PCOMMA')
             elif self.c_t.type == 'GLOBAL':
                 self.advance()
-                var=self.eat('VID')
+                var = self.eat('VID')
                 self.eat('ATTR')
-                exp=self.expr()
+                exp = self.expr()
                 self.eat('PCOMMA')
-                stmts.append(GlobalExp(VarAssignExp(var,exp)))
+                stmts.append(GlobalExp(VarAssignExp(var, exp)))
             elif self.c_t.type == 'IF':
                 self.advance()
                 cd = self.expr()
@@ -339,6 +364,29 @@ class Parser:
                     self.eat('RPAREN')
                 self.eat('PCOMMA')
                 stmts.append(JumpExp(idexp, timeexp, conditionexp))
+            elif self.c_t.type == 'LOOP':
+                self.advance()
+                self.eat('LPAREN')
+                vid = self.eat('VID')
+                self.eat('RPAREN')
+                timeexp = None
+                conditionexp = None
+                body = None
+                if self.c_t.type == 'TIMES':
+                    self.advance()
+                    self.eat('LPAREN')
+                    timeexp = self.expr()
+                    self.eat('RPAREN')
+                if self.c_t.type == 'CONDITION':
+                    self.advance()
+                    self.eat('LPAREN')
+                    conditionexp = self.expr()
+                    self.eat('RPAREN')
+                self.eat('COLON')
+                self.eat('LBRACKET')
+                body = self.compound()
+                self.eat('RBRACKET')
+                stmts.append(LoopStatement(vid, conditionexp, timeexp, body))
             else:
                 break
         return Statements(stmts)
@@ -532,9 +580,6 @@ class Interpreter:
             if val:
                 return val
 
-    def visit_LoopStatement(self, node, symbol_table):
-        pass
-
     def no_visit_method(self, node, symbol_table):
         raise Exception(f"No visit_{type(node).__name__} method defined")
 
@@ -648,8 +693,104 @@ class Interpreter:
                 for i in range(v, global_statement.getjump() - 1):
                     self.visit(global_statement.statements[i], symbol_table)
 
-    def visit_GlobalExp(self,node,symbol_table):
-        self.visit(node.exp,global_symbol_table)
+    def visit_GlobalExp(self, node, symbol_table):
+        self.visit(node.exp, global_symbol_table)
+
+    def visit_LoopStatement(self, node, symbol_table):
+        stm = SymbolTable('LOOP', symbol_table)
+        var = node.var.value
+        value = symbol_table.get(var)
+        if node.condition is not None and node.times is not None:
+            if type(value).__name__ == 'Value':
+                stm.set('key', Value(var))
+                stm.set('value', value)
+                i = 0
+                while i < self.visit(node.times, stm).value and self.visit(node.condition, stm).value == True:
+                    i += 1
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+            elif type(value).__name__ == 'Dictionary':
+                keys = list(value.data.keys())
+                i = 0
+                k = 0
+                while i < self.visit(node.times, stm).value and self.visit(node.condition, stm).value == True:
+                    i += 1
+                    if k == len(keys): k = 0
+                    key = keys[k]
+                    k += 1
+                    stm.set('key', Value(key))
+                    stm.set('value', value.data[key])
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+        elif node.condition is not None:
+            if type(value).__name__ == 'Value':
+                stm.set('key', Value(var))
+                stm.set('value', value)
+                while self.visit(node.condition, stm).value == True:
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+            elif type(value).__name__ == 'Dictionary':
+                keys = list(value.data.keys())
+                k = 0
+                while self.visit(node.condition, stm).value == True:
+                    if k == len(keys): k = 0
+                    key = keys[k]
+                    k += 1
+                    stm.set('key', Value(key))
+                    stm.set('value', value.data[key])
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+        elif node.times is not None:
+            if type(value).__name__ == 'Value':
+                stm.set('key', Value(var))
+                stm.set('value', value)
+                i = 0
+                while i < self.visit(node.times, stm).value:
+                    i += 1
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+            elif type(value).__name__ == 'Dictionary':
+                keys = list(value.data.keys())
+                i = 0
+                k = 0
+                while i < self.visit(node.times, stm).value:
+                    i += 1
+                    if k == len(keys): k = 0
+                    key = keys[k]
+                    k += 1
+                    stm.set('key', Value(key))
+                    stm.set('value', value.data[key])
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+        elif node.condition is None and node.times is None:
+            if type(value).__name__ == 'Value':
+                stm.set('key', Value(var))
+                stm.set('value', value)
+                for i in node.body.statements:
+                    val = self.visit(i, stm)
+                    if val:
+                        return val
+            elif type(value).__name__ == 'Dictionary':
+                for i in list(value.data.keys()):
+                    stm.set('key', Value(i))
+                    stm.set('value', value.data[i])
+                    for j in node.body.statements:
+                        val = self.visit(j, stm)
+                        if val:
+                            return val
+        # print("Aesop")
 
 if __name__ == '__main__':
     # try:

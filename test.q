@@ -1,9 +1,17 @@
-a=0;
+a=5;
 name=`Hello`;
 Id(55);
 a=a+1;
-Id(45);
-Print(a&Line);
-Jump(55)Times(1000);
-Global f=9;
-Print(`Nothing but illusion`&Line);
+Jump(55)Times(200000)Condition(a<100);
+user = (id=8,m=9);
+a=0;
+Loop(a)Condition(a<100):[
+  Print(key&`:`&value&Line);
+  a=a+1;
+  Loop(a)Condition(a<10):[
+    Print(`Something is going good:`&key&`:`&value&Line);
+    a=a+1;
+  ]
+]
+Print(a&
+Space(&UU)Pljmnnn);
