@@ -387,6 +387,32 @@ class Parser:
                 body = self.compound()
                 self.eat('RBRACKET')
                 stmts.append(LoopStatement(vid, conditionexp, timeexp, body))
+            elif self.c_t.type == 'FID':
+                temp=self.c_t
+                if temp.value in list(functions.keys()):
+                    stmts.append(self.expr())
+                    self.eat('PCOMMA')
+                elif temp.value in list(py_functions.keys()):
+                    self.c_t.type='PFID'
+                    stmts.append(self.expr())
+                    self.eat('PCOMMA')
+                else:
+                    self.advance()
+                    self.eat('LPAREN')
+                    arguments=self.args()
+                    self.eat('RPAREN')
+                    if self.c_t.type == 'PCOMMA':
+                        self.advance()
+                        stmts.append(PyFuncExp(temp,arguments))
+                        py_functions.update({temp.value:0})
+                    elif self.c_t.type == 'COLON':
+                        self.advance()
+                        self.eat('LBRACKET')
+                        body=self.compound()
+                        self.eat('RBRACKET')
+                        self.eat('PCOMMA')
+                        stmts.append(FuncExp(temp,arguments,body))
+                        functions.update({temp.value:0})
             else:
                 break
         return Statements(stmts)
@@ -478,7 +504,12 @@ class Parser:
                 return data
             else:
                 return SpaceExp(None)
-
+        elif temp.type == 'FID':
+            self.advance()
+            self.eat('LPAREN')
+            arg=self.argparserex()
+            self.eat('RPAREN')
+            return FuncCallExp(temp,arg,typecall='FID')
         else:
             print(temp.type)
 
@@ -492,6 +523,23 @@ class Parser:
             if self.c_t.type == sep:
                 self.eat(sep)
         return args
+    def args(self,sep='AMP'):
+        arguments = {}
+        while self.c_t.type == 'VID':
+            temp = self.c_t
+            for a in arguments:
+                if temp.value in a:
+                    raise RuntimeError("from {} duplicate args {} at line:{} col:{}"
+                                       .format(temp.file, temp.value, temp.line, temp.col))
+            self.advance()
+            if self.c_t.type == 'ATTR':
+                self.advance()
+                arguments.update({temp.value:self.expr()})
+                if self.c_t.type == sep:self.eat(sep)
+            else:
+                arguments.update({temp.value:NumberExp(Token(0,'CONST_INT',temp.line,temp.col,temp.file))})
+                if self.c_t.type == sep: self.eat(sep)
+        return arguments
 
     def argparserex(self, sep='AMP'):
         list = []
@@ -510,6 +558,8 @@ class Parser:
 ###############################
 ###############################
 global_statement = None
+py_functions={}
+functions={}
 
 
 class Interpreter:
@@ -699,8 +749,8 @@ class Interpreter:
     def visit_LoopStatement(self, node, symbol_table):
         stm = SymbolTable('LOOP', symbol_table)
         var = node.var.value
-        value = symbol_table.get(var)
         if node.condition is not None and node.times is not None:
+            value = symbol_table.get(var)
             if type(value).__name__ == 'Value':
                 stm.set('key', Value(var))
                 stm.set('value', value)
@@ -727,6 +777,7 @@ class Interpreter:
                         if val:
                             return val
         elif node.condition is not None:
+            value = symbol_table.get(var)
             if type(value).__name__ == 'Value':
                 stm.set('key', Value(var))
                 stm.set('value', value)
@@ -749,6 +800,7 @@ class Interpreter:
                         if val:
                             return val
         elif node.times is not None:
+            value = symbol_table.get(var)
             if type(value).__name__ == 'Value':
                 stm.set('key', Value(var))
                 stm.set('value', value)
@@ -775,6 +827,7 @@ class Interpreter:
                         if val:
                             return val
         elif node.condition is None and node.times is None:
+            value = symbol_table.get(var)
             if type(value).__name__ == 'Value':
                 stm.set('key', Value(var))
                 stm.set('value', value)
@@ -791,6 +844,36 @@ class Interpreter:
                         if val:
                             return val
         # print("Aesop")
+    def visit_FuncExp(self,node,symbol_table):
+        f=Function(node.name,node.args,node.body)
+        global_symbol_table.set(node.name.value,f)
+    def visit_PyFuncExp(self,node,symbol_table):
+        f=Function(node.name,node.args,None)
+        global_symbol_table.set(node.name.value,f)
+    def visit_FuncCallExp(self,node,symbol_table):
+        stm=SymbolTable(node.name.value,symbol_table)
+        func=global_symbol_table.get(node.name.value)
+        if len(func.args) < len(node.args):
+            raise RuntimeError("Too many argument supplied function:{} at line:{} col:{} in file:{}"
+                               .format(func.name.value,node.name.line,node.name.col,node.name.file))
+        evaluated=[]
+        for i in func.args:
+            evaluated.append(self.visit(func.args[i],symbol_table))
+        i=0
+        newevaluated=[]
+        for j in node.args:
+            newevaluated.append(self.visit(j,symbol_table))
+        for j in newevaluated:
+            evaluated[i]=j
+            i+=1
+        i=0
+        for j in func.args:
+            stm.symbols.update({j:evaluated[i]})
+            i+=1
+        for i in func.body.statements:
+            val=self.visit(i,stm)
+            if val:
+                return val
 
 if __name__ == '__main__':
     # try:

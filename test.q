@@ -1,4 +1,5 @@
 a=5;
+<#
 name=`Hello`;
 Id(55);
 a=a+1;
@@ -13,5 +14,10 @@ Loop(a)Condition(a<100):[
     a=a+1;
   ]
 ]
-Print(a&
-Space(&UU)Pljmnnn);
+Print(a&Line);#>
+Quantum(a=90&b&d=70):[
+  Global f=88;
+];
+Max();
+Quantum(4&4+5);
+Print(f&Line);

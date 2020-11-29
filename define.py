@@ -148,7 +148,21 @@ class StringExp:
 class GlobalExp:
     def __init__(self, exp):
         self.exp = exp
+class PyFuncExp:
+    def __init__(self,name,args):
+        self.name=name
+        self.args=args
 
+class FuncExp:
+    def __init__(self,name,args,body):
+        self.name=name
+        self.args=args
+        self.body=body
+class FuncCallExp:
+    def __init__(self,name,args,typecall='FID'):
+        self.name=name
+        self.args=args
+        self.typecall=typecall
 
 #########################
 ##### Values ############
@@ -209,6 +223,12 @@ class Dictionary:
 
     def __repr__(self):
         return str(self.data)
+
+class Function:
+    def __init__(self,name,args,body=None):
+        self.name=name
+        self.args=args
+        self.body=body
 
 
 class SymbolTable:
