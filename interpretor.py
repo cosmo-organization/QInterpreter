@@ -267,8 +267,15 @@ class Parser:
                 self.advance()
                 stmts.append(ListExp(self.expr()))
                 self.eat('PCOMMA')
-
-
+            elif self.c_t.type == 'FID':
+                temp = self.c_t
+                if temp.value in list(functions.keys()):
+                    stmts.append(self.expr())
+                    self.eat('PCOMMA')
+                elif temp.value in list(py_functions.keys()):
+                    self.c_t.type = 'PFID'
+                    stmts.append(self.expr())
+                    self.eat('PCOMMA')
             else:
                 break
         return CompoundStatement(stmts)
@@ -408,11 +415,11 @@ class Parser:
                     elif self.c_t.type == 'COLON':
                         self.advance()
                         self.eat('LBRACKET')
+                        functions.update({temp.value: 0})
                         body=self.compound()
                         self.eat('RBRACKET')
                         self.eat('PCOMMA')
                         stmts.append(FuncExp(temp,arguments,body))
-                        functions.update({temp.value:0})
             else:
                 break
         return Statements(stmts)
@@ -510,8 +517,24 @@ class Parser:
             arg=self.argparserex()
             self.eat('RPAREN')
             return FuncCallExp(temp,arg,typecall='FID')
+        elif temp.type == 'PFID':
+            self.advance()
+            self.eat('LPAREN')
+            args=self.argparserex()
+            print(args)
+            self.eat('RPAREN')
+            keyval={}
+            while self.c_t.type  == 'VID':
+                t=self.c_t
+                self.advance()
+                self.eat('LPAREN')
+                exp=self.expr()
+                self.eat('RPAREN')
+                keyval.update({t.value:exp})
+            keyval.update({'$':args})
+            return FuncCallExp(temp,keyval,typecall='PFID')
         else:
-            print(temp.type)
+            pass
 
     def argparser(self, sep='AMP', outer=False):
         args = {}
@@ -545,7 +568,8 @@ class Parser:
         list = []
         while self.c_t.type == 'VID' or self.c_t.type == 'INTEGER_CONST' or \
                 self.c_t.type == 'FLOAT_CONST' or self.c_t.type == 'STRING_CONST1' or \
-                self.c_t.type == 'STRING_CONST2' or self.c_t.type == 'CLINE' or self.c_t.type == 'CSPACE':
+                self.c_t.type == 'STRING_CONST2' or self.c_t.type == 'CLINE' or self.c_t.type == 'CSPACE'\
+                or self.c_t.type == 'FID' or self.c_t.type == 'PFID':
             list.append(self.expr())
             if self.c_t.type == sep:
                 self.eat(sep)
@@ -851,29 +875,33 @@ class Interpreter:
         f=Function(node.name,node.args,None)
         global_symbol_table.set(node.name.value,f)
     def visit_FuncCallExp(self,node,symbol_table):
-        stm=SymbolTable(node.name.value,symbol_table)
-        func=global_symbol_table.get(node.name.value)
-        if len(func.args) < len(node.args):
-            raise RuntimeError("Too many argument supplied function:{} at line:{} col:{} in file:{}"
-                               .format(func.name.value,node.name.line,node.name.col,node.name.file))
-        evaluated=[]
-        for i in func.args:
-            evaluated.append(self.visit(func.args[i],symbol_table))
-        i=0
-        newevaluated=[]
-        for j in node.args:
-            newevaluated.append(self.visit(j,symbol_table))
-        for j in newevaluated:
-            evaluated[i]=j
-            i+=1
-        i=0
-        for j in func.args:
-            stm.symbols.update({j:evaluated[i]})
-            i+=1
-        for i in func.body.statements:
-            val=self.visit(i,stm)
-            if val:
-                return val
+        if node.typecall == 'FID':
+            stm=SymbolTable(node.name.value,symbol_table)
+            func=global_symbol_table.get(node.name.value)
+            if len(func.args) < len(node.args):
+                raise RuntimeError("Too many argument supplied function:{} at line:{} col:{} in file:{}"
+                                   .format(func.name.value,node.name.line,node.name.col,node.name.file))
+            evaluated=[]
+            for i in func.args:
+                evaluated.append(self.visit(func.args[i],symbol_table))
+            i=0
+            newevaluated=[]
+            for j in node.args:
+                newevaluated.append(self.visit(j,symbol_table))
+            for j in newevaluated:
+                evaluated[i]=j
+                i+=1
+            i=0
+            for j in func.args:
+                stm.symbols.update({j:evaluated[i]})
+                i+=1
+            for i in func.body.statements:
+                val=self.visit(i,stm)
+                if val:
+                    return val
+        elif node.typecall == 'PFID':
+            return 0
+
 
 if __name__ == '__main__':
     # try:

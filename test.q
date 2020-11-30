@@ -15,9 +15,15 @@ Loop(a)Condition(a<100):[
   ]
 ]
 Print(a&Line);#>
-Quantum(a=90&b&d=70):[
-  Global f=88;
-];
 Max();
-Quantum(4&4+5);
-Print(f&Line);
+ToRadian(deg):[
+  Return (deg*(22/7))/180;
+];
+ArcLength(deg&radius):[
+  Return ToRadian(deg)*radius;
+];
+Perimeter(radius):[
+  Return ArcLength(360&radius);
+];
+Print(Perimeter(700587877)&Line);
+Max();
