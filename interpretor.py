@@ -1,8 +1,8 @@
+import copy
 import re
 
 from define import *
-
-
+import py_command as py_cmd
 class Lexer:
     def __init__(self):
         self.tokens = []
@@ -395,31 +395,31 @@ class Parser:
                 self.eat('RBRACKET')
                 stmts.append(LoopStatement(vid, conditionexp, timeexp, body))
             elif self.c_t.type == 'FID':
-                temp=self.c_t
+                temp = self.c_t
                 if temp.value in list(functions.keys()):
                     stmts.append(self.expr())
                     self.eat('PCOMMA')
                 elif temp.value in list(py_functions.keys()):
-                    self.c_t.type='PFID'
+                    self.c_t.type = 'PFID'
                     stmts.append(self.expr())
                     self.eat('PCOMMA')
                 else:
                     self.advance()
                     self.eat('LPAREN')
-                    arguments=self.args()
+                    arguments = self.args()
                     self.eat('RPAREN')
                     if self.c_t.type == 'PCOMMA':
                         self.advance()
-                        stmts.append(PyFuncExp(temp,arguments))
-                        py_functions.update({temp.value:0})
+                        stmts.append(PyFuncExp(temp, arguments))
+                        py_functions.update({temp.value: 0})
                     elif self.c_t.type == 'COLON':
                         self.advance()
                         self.eat('LBRACKET')
                         functions.update({temp.value: 0})
-                        body=self.compound()
+                        body = self.compound()
                         self.eat('RBRACKET')
                         self.eat('PCOMMA')
-                        stmts.append(FuncExp(temp,arguments,body))
+                        stmts.append(FuncExp(temp, arguments, body))
             else:
                 break
         return Statements(stmts)
@@ -512,27 +512,29 @@ class Parser:
             else:
                 return SpaceExp(None)
         elif temp.type == 'FID':
+            if temp.value in py_functions:
+                self.c_t.type == 'PFID'
+                return self.factor()
             self.advance()
             self.eat('LPAREN')
-            arg=self.argparserex()
+            arg = self.argparserex()
             self.eat('RPAREN')
-            return FuncCallExp(temp,arg,typecall='FID')
+            return FuncCallExp(temp, arg, typecall='FID')
         elif temp.type == 'PFID':
             self.advance()
             self.eat('LPAREN')
-            args=self.argparserex()
-            print(args)
+            args = self.argparserex()
             self.eat('RPAREN')
-            keyval={}
-            while self.c_t.type  == 'VID':
-                t=self.c_t
+            keyval = {}
+            while self.c_t.type == 'VID':
+                t = self.c_t
                 self.advance()
                 self.eat('LPAREN')
-                exp=self.expr()
+                exp = self.expr()
                 self.eat('RPAREN')
-                keyval.update({t.value:exp})
-            keyval.update({'$':args})
-            return FuncCallExp(temp,keyval,typecall='PFID')
+                keyval.update({t.value: exp})
+            keyval.update({'$': args})
+            return FuncCallExp(temp, keyval, typecall='PFID')
         else:
             pass
 
@@ -546,7 +548,8 @@ class Parser:
             if self.c_t.type == sep:
                 self.eat(sep)
         return args
-    def args(self,sep='AMP'):
+
+    def args(self, sep='AMP'):
         arguments = {}
         while self.c_t.type == 'VID':
             temp = self.c_t
@@ -557,10 +560,10 @@ class Parser:
             self.advance()
             if self.c_t.type == 'ATTR':
                 self.advance()
-                arguments.update({temp.value:self.expr()})
-                if self.c_t.type == sep:self.eat(sep)
+                arguments.update({temp.value: self.expr()})
+                if self.c_t.type == sep: self.eat(sep)
             else:
-                arguments.update({temp.value:NumberExp(Token(0,'CONST_INT',temp.line,temp.col,temp.file))})
+                arguments.update({temp.value: NumberExp(Token(0, 'CONST_INT', temp.line, temp.col, temp.file))})
                 if self.c_t.type == sep: self.eat(sep)
         return arguments
 
@@ -568,8 +571,10 @@ class Parser:
         list = []
         while self.c_t.type == 'VID' or self.c_t.type == 'INTEGER_CONST' or \
                 self.c_t.type == 'FLOAT_CONST' or self.c_t.type == 'STRING_CONST1' or \
-                self.c_t.type == 'STRING_CONST2' or self.c_t.type == 'CLINE' or self.c_t.type == 'CSPACE'\
-                or self.c_t.type == 'FID' or self.c_t.type == 'PFID':
+                self.c_t.type == 'STRING_CONST2' or self.c_t.type == 'CLINE' or self.c_t.type == 'CSPACE' \
+                or self.c_t.type == 'FID':
+            if self.c_t.value in py_functions:
+                self.c_t.type = 'PFID'
             list.append(self.expr())
             if self.c_t.type == sep:
                 self.eat(sep)
@@ -582,8 +587,8 @@ class Parser:
 ###############################
 ###############################
 global_statement = None
-py_functions={}
-functions={}
+py_functions = {}
+functions = {}
 
 
 class Interpreter:
@@ -731,7 +736,6 @@ class Interpreter:
             return Value("\n")
 
     def visit_Statements(self, node, symbol_table):
-        print(node)
         while node.havenext():
             self.visit(node.next(), symbol_table)
 
@@ -868,39 +872,70 @@ class Interpreter:
                         if val:
                             return val
         # print("Aesop")
-    def visit_FuncExp(self,node,symbol_table):
-        f=Function(node.name,node.args,node.body)
-        global_symbol_table.set(node.name.value,f)
-    def visit_PyFuncExp(self,node,symbol_table):
-        f=Function(node.name,node.args,None)
-        global_symbol_table.set(node.name.value,f)
-    def visit_FuncCallExp(self,node,symbol_table):
+
+    def visit_FuncExp(self, node, symbol_table):
+        f = Function(node.name, node.args, node.body)
+        global_symbol_table.set(node.name.value, f)
+
+    def visit_PyFuncExp(self, node, symbol_table):
+        f = Function(node.name, node.args, None)
+        global_symbol_table.set(node.name.value, f)
+
+    def visit_FuncCallExp(self, node, symbol_table):
         if node.typecall == 'FID':
-            stm=SymbolTable(node.name.value,symbol_table)
-            func=global_symbol_table.get(node.name.value)
+            stm = SymbolTable(node.name.value, symbol_table)
+            func = global_symbol_table.get(node.name.value)
             if len(func.args) < len(node.args):
                 raise RuntimeError("Too many argument supplied function:{} at line:{} col:{} in file:{}"
-                                   .format(func.name.value,node.name.line,node.name.col,node.name.file))
-            evaluated=[]
+                                   .format(func.name.value, node.name.line, node.name.col, node.name.file))
+            evaluated = []
             for i in func.args:
-                evaluated.append(self.visit(func.args[i],symbol_table))
-            i=0
-            newevaluated=[]
+                evaluated.append(self.visit(func.args[i], symbol_table))
+            i = 0
+            newevaluated = []
             for j in node.args:
-                newevaluated.append(self.visit(j,symbol_table))
+                newevaluated.append(self.visit(j, symbol_table))
             for j in newevaluated:
-                evaluated[i]=j
-                i+=1
-            i=0
+                evaluated[i] = j
+                i += 1
+            i = 0
             for j in func.args:
-                stm.symbols.update({j:evaluated[i]})
-                i+=1
+                stm.symbols.update({j: evaluated[i]})
+                i += 1
             for i in func.body.statements:
-                val=self.visit(i,stm)
+                val = self.visit(i, stm)
                 if val:
                     return val
         elif node.typecall == 'PFID':
-            return 0
+            stm = SymbolTable(node.name.value, symbol_table)
+            args = copy.copy(node.args)
+            all = args.pop('$')
+            f = global_symbol_table.get(node.name.value)
+            if len(f.args) < len(all) or len(f.args) < len(args):
+                raise RuntimeError('Too many argument supplied function:{} line:{} col:{} in {}'
+                                   .format(node.name.value, node.name.line, node.name.col, node.name.file))
+            evaluated = {}
+            for i in f.args:
+                evaluated.update({i: self.visit(f.args[i], symbol_table)})
+            k = 0
+            keys = list(evaluated.keys())
+            for i in all:
+                evaluated.update({keys[k]: self.visit(i, symbol_table)})
+                k += 1
+            for i in args:
+                evaluated.update({i: self.visit(args[i], symbol_table)})
+            argument_pass_str = ""
+            for i in evaluated:
+                argument_pass_str += i + "="
+                if type(evaluated[i].value).__name__ == 'str':
+                    argument_pass_str += "'" + evaluated[i].value + "',"
+                else:
+                    argument_pass_str += str(evaluated[i].value) + ","
+            argument_pass_str = argument_pass_str[:len(argument_pass_str) - 1]
+            pyzf = "py_cmd." + f.name.value + "(" + argument_pass_str + ")"
+            val = eval(pyzf)
+            if val != None:
+                return Value(val)
 
 
 if __name__ == '__main__':
@@ -913,6 +948,5 @@ if __name__ == '__main__':
     global_statement = tree
     i = Interpreter(tree)
     i.visit(tree, global_symbol_table)
-    print(global_symbol_table.name, global_symbol_table.symbols)
 # except Exception as ex:
 #     print("Runtime error",ex)
