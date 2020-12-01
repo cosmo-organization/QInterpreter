@@ -164,14 +164,16 @@ class FuncCallExp:
         self.args=args
         self.typecall=typecall
 class SelfReplaceExp:
-    def __init__(self,var,args):
+    def __init__(self,var,toreplace,withreplace):
         self.var=var
-        self.args=args
+        self.toreplace=toreplace
+        self.withreplace=withreplace
 
 class AssignReplaceExp:
-    def __init__(self,var,args):
-        self.var=var
-        self.args=args
+    def __init__(self,var,toreplace,withreplace):
+        self.var = var
+        self.toreplace = toreplace
+        self.withreplace = withreplace
 #########################
 ##### Values ############
 #########################
@@ -217,7 +219,16 @@ class Value:
 
     def __repr__(self):
         return str(self.value)
-
+    def replaceself(self,toreplace,withreplace):
+        if type(self.value).__name__ == 'str':
+            self.value=self.value.replace(toreplace.value,withreplace.value)
+        else:
+            raise RuntimeError("Can't apply replace function on other than string")
+    def replacenew(self,toreplace,withreplace):
+        if type(self.value).__name__ == 'str':
+            return Value(self.value.replace(toreplace.value,withreplace.value))
+        else:
+            raise RuntimeError("Can't apply replace function on other than string")
 
 class Dictionary:
     def __init__(self, data):

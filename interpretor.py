@@ -1,8 +1,8 @@
 import copy
 import re
-
 from define import *
 import py_command as py_cmd
+
 class Lexer:
     def __init__(self):
         self.tokens = []
@@ -85,7 +85,7 @@ class Lexer:
             ('FLOAT_CONST', r'\d(\d)*\.\d(\d)*'),  # FLOAT
             ('INTEGER_CONST', r'\d(\d)*'),  # INT
             ('STRING_CONST1', r'`[^`]*`'),  # CONST STRING
-            ('STRING_CONST2', r'"[^`]*"'),  # CONST STRING
+            ('STRING_CONST2', r'"[^"]*"'),  # CONST STRING
             ('NEWLINE', r'\n'),  # NEW LINE
             ('SKIP', r'[ \t]+'),  # SPACE and TABS
             ('MISMATCH', r'.'),  # ANOTHER CHARACTER
@@ -180,21 +180,35 @@ class Parser:
         while self.c_t.type != 'EOF':
             if self.c_t.type == 'VID':
                 temp = self.c_t
-                vars = [temp]
                 self.advance()
-                while self.c_t.type == 'VID':
-                    vars.append(self.eat('VID'))
-                self.eat('ATTR')
-                if len(vars) == 1:
-                    ex = self.expr()
-                    self.eat('PCOMMA')
-                    stmts.append(VarAssignExp(temp, ex))
+                if self.c_t.type == 'POINT':
+                    self.advance()
+                    if self.c_t.type == 'REPLACE':
+                        self.advance()
+                        self.eat('LPAREN')
+                        toreplace = self.expr()
+                        self.eat('RPAREN')
+                        self.eat('WITH')
+                        self.eat('LPAREN')
+                        withreplace = self.expr()
+                        self.eat('RPAREN')
+                        self.eat('PCOMMA')
+                        stmts.append(SelfReplaceExp(temp, toreplace, withreplace))
                 else:
-                    listexp = []
-                    for i in vars:
-                        listexp.append(VarAssignExp(i, self.expr()))
-                    self.eat('PCOMMA')
-                    stmts.append(MultiVarAssignExp(listexp))
+                    vars = [temp]
+                    while self.c_t.type == 'VID':
+                        vars.append(self.eat('VID'))
+                    self.eat('ATTR')
+                    if len(vars) == 1:
+                        ex = self.expr()
+                        self.eat('PCOMMA')
+                        stmts.append(VarAssignExp(temp, ex))
+                    else:
+                        listexp = []
+                        for i in vars:
+                            listexp.append(VarAssignExp(i, self.expr()))
+                        self.eat('PCOMMA')
+                        stmts.append(MultiVarAssignExp(listexp))
             elif self.c_t.type == 'PRINT':
                 self.advance()
                 self.eat('LPAREN')
@@ -285,21 +299,35 @@ class Parser:
         while self.c_t.type != 'EOF':
             if self.c_t.type == 'VID':
                 temp = self.c_t
-                vars = [temp]
                 self.advance()
-                while self.c_t.type == 'VID':
-                    vars.append(self.eat('VID'))
-                self.eat('ATTR')
-                if len(vars) == 1:
-                    ex = self.expr()
-                    self.eat('PCOMMA')
-                    stmts.append(VarAssignExp(temp, ex))
+                if self.c_t.type == 'POINT':
+                    self.advance()
+                    if self.c_t.type == 'REPLACE':
+                        self.advance()
+                        self.eat('LPAREN')
+                        toreplace = self.expr()
+                        self.eat('RPAREN')
+                        self.eat('WITH')
+                        self.eat('LPAREN')
+                        withreplace = self.expr()
+                        self.eat('RPAREN')
+                        self.eat('PCOMMA')
+                        stmts.append(SelfReplaceExp(temp, toreplace, withreplace))
                 else:
-                    listexp = []
-                    for i in vars:
-                        listexp.append(VarAssignExp(i, self.expr()))
-                    self.eat('PCOMMA')
-                    stmts.append(MultiVarAssignExp(listexp))
+                    vars = [temp]
+                    while self.c_t.type == 'VID':
+                        vars.append(self.eat('VID'))
+                    self.eat('ATTR')
+                    if len(vars) == 1:
+                        ex = self.expr()
+                        self.eat('PCOMMA')
+                        stmts.append(VarAssignExp(temp, ex))
+                    else:
+                        listexp = []
+                        for i in vars:
+                            listexp.append(VarAssignExp(i, self.expr()))
+                        self.eat('PCOMMA')
+                        stmts.append(MultiVarAssignExp(listexp))
             elif self.c_t.type == 'PRINT':
                 self.advance()
                 self.eat('LPAREN')
@@ -484,6 +512,18 @@ class Parser:
             return UnaryExp(self.factor())
         elif temp.type == 'VID':
             self.advance()
+            if self.c_t.type == 'POINT':
+                self.advance()
+                if self.c_t.type == 'REPLACE':
+                    self.advance()
+                    self.eat('LPAREN')
+                    toreplace = self.expr()
+                    self.eat('RPAREN')
+                    self.eat('WITH')
+                    self.eat('LPAREN')
+                    withreplace = self.expr()
+                    self.eat('RPAREN')
+                    return AssignReplaceExp(temp, toreplace, withreplace)
             return VarExp(temp)
         elif temp.type == 'STRING_CONST1':
             self.advance()
@@ -693,7 +733,7 @@ class Interpreter:
         elif node.elsebody is not None and not elseifexecuted:
             elseifexecuted = False
             for i in node.elsebody.statements:
-                val=self.visit(i,s_table)
+                val = self.visit(i, s_table)
                 if val:
                     return val
 
@@ -705,7 +745,7 @@ class Interpreter:
             return val
         else:
             raise RuntimeError('Undefined variable "{}" at line:{} col:{} in {} from {}'
-                               .format(node.tok.value, node.tok.line, node.tok.col, node.tok.file,symbol_table.name))
+                               .format(node.tok.value, node.tok.line, node.tok.col, node.tok.file, symbol_table.name))
 
     def visit_ReturnStatement(self, node, symbol_table):
         return self.visit(node.exp, symbol_table)
@@ -941,7 +981,7 @@ class Interpreter:
             for i in evaluated:
                 argument_pass_str += i + "="
                 if type(evaluated[i].value).__name__ == 'str':
-                    argument_pass_str += "'" + evaluated[i].value + "',"
+                    argument_pass_str += '"' + evaluated[i].value + '",'
                 else:
                     argument_pass_str += str(evaluated[i].value) + ","
             argument_pass_str = argument_pass_str[:len(argument_pass_str) - 1]
@@ -950,9 +990,17 @@ class Interpreter:
             if val != None:
                 return Value(val)
 
+    def visit_SelfReplaceExp(self, node, symbol_table):
+        data = symbol_table.get(node.var.value)
+        data.replaceself(self.visit(node.toreplace, symbol_table), self.visit(node.withreplace, symbol_table))
+
+    def visit_AssignReplaceExp(self, node, symbol_table):
+        return symbol_table.get(node.var.value).replacenew(self.visit(node.toreplace, symbol_table),
+                                                           self.visit(node.withreplace, symbol_table))
+
 
 if __name__ == '__main__':
-    # try:
+    try:
         lexer = Lexer()
         data = lexer.tokenize('test.q', 1, ['command.q'])
         p = Parser(data)
@@ -961,5 +1009,5 @@ if __name__ == '__main__':
         global_statement = tree
         i = Interpreter(tree)
         i.visit(tree, global_symbol_table)
-    # except Exception as ex:
-    #     print('\n',ex)
+    except Exception as ex:
+        print('\n', ex)
