@@ -163,7 +163,15 @@ class FuncCallExp:
         self.name=name
         self.args=args
         self.typecall=typecall
+class SelfReplaceExp:
+    def __init__(self,var,args):
+        self.var=var
+        self.args=args
 
+class AssignReplaceExp:
+    def __init__(self,var,args):
+        self.var=var
+        self.args=args
 #########################
 ##### Values ############
 #########################

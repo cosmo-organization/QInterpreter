@@ -1,3 +1,4 @@
+import hashlib
 def MyName(c=4,d=44):
     return c+c*c+d
 def E(x):
@@ -19,3 +20,7 @@ def Max(n):
         return n*Max(n-1)
 def Eval(exp):
     return eval(exp)
+def Hash(data):
+    return hashlib.sha3_512(data.encode('utf-8')).hexdigest()
+def Execute(python_code):
+    return exec(python_code)

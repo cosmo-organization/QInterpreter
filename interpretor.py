@@ -513,8 +513,20 @@ class Parser:
                 return SpaceExp(None)
         elif temp.type == 'FID':
             if temp.value in py_functions:
-                self.c_t.type == 'PFID'
-                return self.factor()
+                self.advance()
+                self.eat('LPAREN')
+                args = self.argparserex()
+                self.eat('RPAREN')
+                keyval = {}
+                while self.c_t.type == 'VID':
+                    t = self.c_t
+                    self.advance()
+                    self.eat('LPAREN')
+                    exp = self.expr()
+                    self.eat('RPAREN')
+                    keyval.update({t.value: exp})
+                keyval.update({'$': args})
+                return FuncCallExp(temp, keyval, typecall='PFID')
             self.advance()
             self.eat('LPAREN')
             arg = self.argparserex()
@@ -678,11 +690,12 @@ class Interpreter:
                     if val:
                         return val
                     break
-        if node.elsebody is not None and not elseifexecuted:
-            val = self.visit(node.elsebody, s_table)
+        elif node.elsebody is not None and not elseifexecuted:
             elseifexecuted = False
-            if val:
-                return val
+            for i in node.elsebody.statements:
+                val=self.visit(i,s_table)
+                if val:
+                    return val
 
         return None
 
@@ -691,8 +704,8 @@ class Interpreter:
         if val:
             return val
         else:
-            raise RuntimeError('Undefined variable "{}" at line:{} col:{} in {}'
-                               .format(node.tok.value, node.tok.line, node.tok.col, node.tok.file))
+            raise RuntimeError('Undefined variable "{}" at line:{} col:{} in {} from {}'
+                               .format(node.tok.value, node.tok.line, node.tok.col, node.tok.file,symbol_table.name))
 
     def visit_ReturnStatement(self, node, symbol_table):
         return self.visit(node.exp, symbol_table)
@@ -940,13 +953,13 @@ class Interpreter:
 
 if __name__ == '__main__':
     # try:
-    lexer = Lexer()
-    data = lexer.tokenize('test.q', 1, [])
-    p = Parser(data)
-    tree = p.parse()
-    global_symbol_table = SymbolTable('module')
-    global_statement = tree
-    i = Interpreter(tree)
-    i.visit(tree, global_symbol_table)
-# except Exception as ex:
-#     print("Runtime error",ex)
+        lexer = Lexer()
+        data = lexer.tokenize('test.q', 1, ['command.q'])
+        p = Parser(data)
+        tree = p.parse()
+        global_symbol_table = SymbolTable('module')
+        global_statement = tree
+        i = Interpreter(tree)
+        i.visit(tree, global_symbol_table)
+    # except Exception as ex:
+    #     print('\n',ex)
