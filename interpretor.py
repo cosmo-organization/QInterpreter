@@ -1,5 +1,6 @@
 import copy
 import re
+
 from define import *
 import py_command as py_cmd
 
@@ -140,6 +141,10 @@ class Lexer:
                     ')', '').replace(';', '')
                 l = Lexer()
                 self.tokens += l.tokenize(toimport, 1)
+            elif token_lexeme.isupper() and token_lexeme.isalnum():
+                col = (m.start() - lin_start) + 1
+                token_type = 'GLOBAL_VID';
+                self.tokens.append(Token(token_lexeme, token_type, lin_num, col, filename))
             else:
                 col = (m.start() - lin_start) + 1
                 if token_type == 'STRING_CONST1' or token_type == 'STRING_CONST2':
@@ -277,6 +282,22 @@ class Parser:
                 self.advance()
                 stmts.append(ReturnStatement(self.expr()))
                 self.eat('PCOMMA')
+            elif self.c_t.type == 'GLOBAL_VID':
+                temp = self.c_t
+                self.advance()
+                if self.c_t.type == 'POINT':
+                    self.advance()
+                    subvar = self.eat('VID')
+                    self.eat('ATTR')
+                    exp = self.expr()
+                    self.eat('PCOMMA')
+                    stmts.append(AssignDictExp(temp, subvar, exp))
+                else:
+                    self.eat('ATTR')
+                    exp = self.expr()
+                    self.eat('PCOMMA')
+                    stmts.append(AssignDictExp(temp, Token('$', temp.type, temp.line, temp.col, temp.file), exp))
+
             elif self.c_t.type == 'LIST':
                 self.advance()
                 stmts.append(ListExp(self.expr()))
@@ -328,6 +349,38 @@ class Parser:
                             listexp.append(VarAssignExp(i, self.expr()))
                         self.eat('PCOMMA')
                         stmts.append(MultiVarAssignExp(listexp))
+            elif self.c_t.type == 'GLOBAL_VID':
+                temp = self.c_t
+                self.advance()
+                data = {}
+                dictexp = DictExp(temp, None, data)
+                if temp.file == 'configure.q':
+                    self.eat('LPAREN')
+                    ep = self.expr()
+                    self.eat('RPAREN')
+                    dictexp.exp = ep
+                    while self.c_t.type == 'VID':
+                        temp = self.c_t
+                        self.advance()
+                        self.eat('LPAREN')
+                        exp = self.expr()
+                        self.eat('RPAREN')
+                        dictexp.table.update({temp: exp})
+                    self.eat('PCOMMA')
+                    stmts.append(dictexp)
+                elif self.c_t.type == 'POINT':
+                    self.advance()
+                    subvar = self.eat('VID')
+                    self.eat('ATTR')
+                    exp = self.expr()
+                    self.eat('PCOMMA')
+                    stmts.append(AssignDictExp(temp, subvar, exp))
+                else:
+                    self.eat('ATTR')
+                    exp = self.expr()
+                    self.eat('PCOMMA')
+                    stmts.append(AssignDictExp(temp, Token('$', temp.type, temp.line, temp.col, temp.file), exp))
+
             elif self.c_t.type == 'PRINT':
                 self.advance()
                 self.eat('LPAREN')
@@ -587,6 +640,14 @@ class Parser:
                 keyval.update({t.value: exp})
             keyval.update({'$': args})
             return FuncCallExp(temp, keyval, typecall='PFID')
+        elif temp.type == 'GLOBAL_VID':
+            self.advance()
+            if self.c_t.type == 'POINT':
+                self.advance()
+                subvar = self.eat('VID')
+                return DictAccessExp(temp, subvar)
+            else:
+                return DictAccessExp(temp, Token('$', temp.type, temp.line, temp.col, temp.file))
         else:
             pass
 
@@ -624,7 +685,7 @@ class Parser:
         while self.c_t.type == 'VID' or self.c_t.type == 'INTEGER_CONST' or \
                 self.c_t.type == 'FLOAT_CONST' or self.c_t.type == 'STRING_CONST1' or \
                 self.c_t.type == 'STRING_CONST2' or self.c_t.type == 'CLINE' or self.c_t.type == 'CSPACE' \
-                or self.c_t.type == 'FID':
+                or self.c_t.type == 'FID' or self.c_t.type == 'GLOBAL_VID':
             if self.c_t.value in py_functions:
                 self.c_t.type = 'PFID'
             list.append(self.expr())
@@ -815,7 +876,6 @@ class Interpreter:
         elif times is not None:
             while times > node.counter:
                 for i in range(v, global_statement.getjump() - 1):
-                    # print(global_statement.statements[i])
                     self.visit(global_statement.statements[i], symbol_table)
                 node.counter += 1
             node.counter = 0
@@ -998,14 +1058,34 @@ class Interpreter:
         return symbol_table.get(node.var.value).replacenew(self.visit(node.toreplace, symbol_table),
                                                            self.visit(node.withreplace, symbol_table))
 
+    def visit_DictExp(self, node, symbol_table):
+        data = {}
+        selfvalue = self.visit(node.exp, global_symbol_table)
+        data.update({'$': selfvalue})
+        global_symbol_table.set(node.var.value, Dictionary(data))
+        for i in node.table:
+            data.update({i.value: self.visit(node.table[i])})
+
+    def visit_DictAccessExp(self, node, symbol_table):
+        data = global_symbol_table.get(node.var.value)
+        return data.get(node.subvar.value)
+
+    def visit_AssignDictExp(self, node, symbol_table):
+        data = global_symbol_table.get(node.var.value)
+        data.set(node.subvar.value, self.visit(node.exp, symbol_table))
+
+
+import sys
 
 if __name__ == '__main__':
     try:
+        sys.setrecursionlimit(10000)
         lexer = Lexer()
-        data = lexer.tokenize('test.q', 1, ['command.q'])
+        data = lexer.tokenize('test.q', 1, ['configure.q', 'command.q'])
         p = Parser(data)
         tree = p.parse()
         global_symbol_table = SymbolTable('module')
+
         global_statement = tree
         i = Interpreter(tree)
         i.visit(tree, global_symbol_table)

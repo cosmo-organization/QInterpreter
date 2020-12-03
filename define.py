@@ -174,6 +174,22 @@ class AssignReplaceExp:
         self.var = var
         self.toreplace = toreplace
         self.withreplace = withreplace
+class DictExp:
+    def __init__(self,var,exp,table):
+        self.var=var
+        self.exp=exp
+        self.table=table
+class AssignDictExp:
+    def __init__(self,var,subvar,exp):
+        self.var=var
+        self.subvar=subvar
+        self.exp=exp
+
+class DictAccessExp:
+    def __init__(self,var,subvar):
+        self.var=var
+        self.subvar=subvar
+
 #########################
 ##### Values ############
 #########################
@@ -235,7 +251,7 @@ class Dictionary:
         self.data = data
 
     def get(self, key):
-        return self.get(key, None)
+        return self.data.get(key, None)
 
     def set(self, key, value):
         self.data[key] = value
