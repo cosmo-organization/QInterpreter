@@ -69,6 +69,7 @@ class LoopStatement:
         self.times = times
         self.body = body
 
+
 class Statements:
     def __init__(self, statements):
         self.statements = statements
@@ -148,47 +149,74 @@ class StringExp:
 class GlobalExp:
     def __init__(self, exp):
         self.exp = exp
+
+
 class PyFuncExp:
-    def __init__(self,name,args):
-        self.name=name
-        self.args=args
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+
 
 class FuncExp:
-    def __init__(self,name,args,body):
-        self.name=name
-        self.args=args
-        self.body=body
-class FuncCallExp:
-    def __init__(self,name,args,typecall='FID'):
-        self.name=name
-        self.args=args
-        self.typecall=typecall
-class SelfReplaceExp:
-    def __init__(self,var,toreplace,withreplace):
-        self.var=var
-        self.toreplace=toreplace
-        self.withreplace=withreplace
+    def __init__(self, name, args, body):
+        self.name = name
+        self.args = args
+        self.body = body
 
-class AssignReplaceExp:
-    def __init__(self,var,toreplace,withreplace):
+
+class FuncCallExp:
+    def __init__(self, name, args, typecall='FID'):
+        self.name = name
+        self.args = args
+        self.typecall = typecall
+
+
+class SelfReplaceExp:
+    def __init__(self, var, toreplace, withreplace):
         self.var = var
         self.toreplace = toreplace
         self.withreplace = withreplace
+
+
+class AssignReplaceExp:
+    def __init__(self, var, toreplace, withreplace):
+        self.var = var
+        self.toreplace = toreplace
+        self.withreplace = withreplace
+
+
 class DictExp:
-    def __init__(self,var,exp,table):
-        self.var=var
-        self.exp=exp
-        self.table=table
+    def __init__(self, var, exp, table):
+        self.var = var
+        self.exp = exp
+        self.table = table
+
+
 class AssignDictExp:
-    def __init__(self,var,subvar,exp):
-        self.var=var
-        self.subvar=subvar
-        self.exp=exp
+    def __init__(self, var, subvar, exp):
+        self.var = var
+        self.subvar = subvar
+        self.exp = exp
+
 
 class DictAccessExp:
-    def __init__(self,var,subvar):
-        self.var=var
-        self.subvar=subvar
+    def __init__(self, var, subvar):
+        self.var = var
+        self.subvar = subvar
+
+
+class AssignSubVarExp:
+    def __init__(self, var, subvar, exp):
+        self.var = var
+        self.subvar = subvar
+        self.exp = exp
+
+
+class AccessSubVarExp:
+    def __init__(self, var, subvar):
+        self.var = var
+        self.subvar = subvar
+
 
 #########################
 ##### Values ############
@@ -235,16 +263,19 @@ class Value:
 
     def __repr__(self):
         return str(self.value)
-    def replaceself(self,toreplace,withreplace):
+
+    def replaceself(self, toreplace, withreplace):
         if type(self.value).__name__ == 'str':
-            self.value=self.value.replace(toreplace.value,withreplace.value)
+            self.value = self.value.replace(toreplace.value, withreplace.value)
         else:
             raise RuntimeError("Can't apply replace function on other than string")
-    def replacenew(self,toreplace,withreplace):
+
+    def replacenew(self, toreplace, withreplace):
         if type(self.value).__name__ == 'str':
-            return Value(self.value.replace(toreplace.value,withreplace.value))
+            return Value(self.value.replace(toreplace.value, withreplace.value))
         else:
             raise RuntimeError("Can't apply replace function on other than string")
+
 
 class Dictionary:
     def __init__(self, data):
@@ -259,11 +290,12 @@ class Dictionary:
     def __repr__(self):
         return str(self.data)
 
+
 class Function:
-    def __init__(self,name,args,body=None):
-        self.name=name
-        self.args=args
-        self.body=body
+    def __init__(self, name, args, body=None):
+        self.name = name
+        self.args = args
+        self.body = body
 
 
 class SymbolTable:

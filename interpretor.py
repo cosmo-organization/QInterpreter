@@ -199,6 +199,13 @@ class Parser:
                         self.eat('RPAREN')
                         self.eat('PCOMMA')
                         stmts.append(SelfReplaceExp(temp, toreplace, withreplace))
+                    elif self.c_t.type == 'VID':
+                        subvar = self.c_t
+                        self.advance()
+                        self.eat('ATTR')
+                        exp = self.expr()
+                        self.eat('PCOMMA')
+                        stmts.append(AssignSubVarExp(temp, subvar, exp))
                 else:
                     vars = [temp]
                     while self.c_t.type == 'VID':
@@ -334,6 +341,13 @@ class Parser:
                         self.eat('RPAREN')
                         self.eat('PCOMMA')
                         stmts.append(SelfReplaceExp(temp, toreplace, withreplace))
+                    elif self.c_t.type == 'VID':
+                        subvar = self.c_t
+                        self.advance()
+                        self.eat('ATTR')
+                        exp = self.expr()
+                        self.eat('PCOMMA')
+                        stmts.append(AssignSubVarExp(temp, subvar, exp))
                 else:
                     vars = [temp]
                     while self.c_t.type == 'VID':
@@ -577,6 +591,10 @@ class Parser:
                     withreplace = self.expr()
                     self.eat('RPAREN')
                     return AssignReplaceExp(temp, toreplace, withreplace)
+                elif self.c_t.type == 'VID':
+                    subvar = self.c_t
+                    self.advance()
+                    return AccessSubVarExp(temp, subvar)
             return VarExp(temp)
         elif temp.type == 'STRING_CONST1':
             self.advance()
@@ -1073,6 +1091,12 @@ class Interpreter:
     def visit_AssignDictExp(self, node, symbol_table):
         data = global_symbol_table.get(node.var.value)
         data.set(node.subvar.value, self.visit(node.exp, symbol_table))
+
+    def visit_AssignSubVarExp(self, node, symbol_table):
+        symbol_table.get(node.var.value).set(node.subvar.value, self.visit(node.exp, symbol_table))
+
+    def visit_AccessSubVarExp(self, node, symbol_table):
+        return symbol_table.get(node.var.value).get(node.subvar.value)
 
 
 import sys
