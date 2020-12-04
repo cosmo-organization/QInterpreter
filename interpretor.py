@@ -2,8 +2,16 @@ import copy
 import re
 
 from define import *
-import py_command as py_cmd
+py_cmd=None
+code='class Data:\n' \
+     '\tdef __init__(self):\n'
 
+def addmore(code,var,value):
+    if type(value).__name__ == 'str':
+        value='"'+value+'"'
+    return code+'\t\tself.'+var+'='+str(value)+'\n'
+def createvar(code,varname):
+    exec(varname+'=Data()')
 class Lexer:
     def __init__(self):
         self.tokens = []
@@ -1063,7 +1071,7 @@ class Interpreter:
                 else:
                     argument_pass_str += str(evaluated[i].value) + ","
             argument_pass_str = argument_pass_str[:len(argument_pass_str) - 1]
-            pyzf = "py_cmd." + f.name.value + "(" + argument_pass_str + ")"
+            pyzf = "" + f.name.value + "(" + argument_pass_str + ")"
             val = eval(pyzf)
             if val != None:
                 return Value(val)
@@ -1077,20 +1085,38 @@ class Interpreter:
                                                            self.visit(node.withreplace, symbol_table))
 
     def visit_DictExp(self, node, symbol_table):
+        template=code
         data = {}
         selfvalue = self.visit(node.exp, global_symbol_table)
         data.update({'$': selfvalue})
+        template=addmore(template,'self',selfvalue.value)
         global_symbol_table.set(node.var.value, Dictionary(data))
         for i in node.table:
-            data.update({i.value: self.visit(node.table[i])})
+            val=self.visit(node.table[i])
+            template=addmore(template,i.value,val.value)
+            data.update({i.value: val})
+        exec(template)
+        globals().update({node.var.value:eval('Data()')})
 
     def visit_DictAccessExp(self, node, symbol_table):
         data = global_symbol_table.get(node.var.value)
         return data.get(node.subvar.value)
 
     def visit_AssignDictExp(self, node, symbol_table):
+        template = code
         data = global_symbol_table.get(node.var.value)
-        data.set(node.subvar.value, self.visit(node.exp, symbol_table))
+        data.set(node.subvar.value, self.visit(node.exp, global_symbol_table))
+        for i in data.data:
+            if i == node.subvar.value:
+                i=i.replace('$','self')
+                template=addmore(template,i,self.visit(node.exp,global_symbol_table).value)
+            else:
+                if i == '$':
+                    template=addmore(template,'self',data.get(i).value)
+                else:
+                    template=addmore(template,i,data.get(i).value)
+        exec(template)
+        globals().update({node.var.value: eval('Data()')})
 
     def visit_AssignSubVarExp(self, node, symbol_table):
         symbol_table.get(node.var.value).set(node.subvar.value, self.visit(node.exp, symbol_table))
@@ -1102,16 +1128,17 @@ class Interpreter:
 import sys
 
 if __name__ == '__main__':
-    try:
+    # try:
         sys.setrecursionlimit(10000)
         lexer = Lexer()
         data = lexer.tokenize('test.q', 1, ['configure.q', 'command.q'])
         p = Parser(data)
         tree = p.parse()
         global_symbol_table = SymbolTable('module')
-
+        source=open('py_command.py').read()
+        exec(source)
         global_statement = tree
         i = Interpreter(tree)
         i.visit(tree, global_symbol_table)
-    except Exception as ex:
-        print('\n', ex)
+    # except Exception as ex:
+    #     print('\n', ex)

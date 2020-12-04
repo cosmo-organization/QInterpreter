@@ -1,6 +1,5 @@
 import hashlib
 
-
 def MyName(c=4, d=44):
     return c + c * c + d
 
@@ -41,3 +40,13 @@ def Hash(data):
 
 def Execute(python_code):
     return exec(python_code)
+
+def Something():
+    print(BACKUP.self)
+    print(ARRAY.index1)
+def Login(username,password):
+    print(DB.self)
+    if username == DB.username and password == DB.password:
+        return 'Logined Successfully'
+    else:
+        return 'Login Unsuccess'
